@@ -21,7 +21,7 @@ HOMEPAGE="http://www.samba.org/"
 LICENSE="GPL-3"
 SLOT="0"
 KEYWORDS="~amd64 ~x86"
-IUSE="gnutls fulltest"
+IUSE="gnutls fulltest debug"
 
 DEPEND="!net-fs/samba-libs
 	!net-fs/samba-server
@@ -31,9 +31,9 @@ DEPEND="!net-fs/samba-libs
 	virtual/libiconv
 	>=dev-lang/python-2.4.2
 	gnutls? ( >=net-libs/gnutls-1.4.0 )
-	>=sys-libs/tdb-1.2.8
-	>=sys-libs/talloc-2.0.4
-	>=sys-libs/tevent-0.9.10"
+	!sys-libs/tdb
+	!sys-libs/talloc
+	!sys-libs/tevent"
 RDEPEND="${DEPEND}"
 
 RESTRICT="mirror"
@@ -55,33 +55,28 @@ src_unpack() {
 }
 
 src_configure() {
-	# FIXME add --jobs
-	# Mostly copied from debian
-	FLAGS="$CFLAGS" $WAF configure -C \
-		--prefix=/usr \
+	econf --prefix=/usr \
 		--mandir=/usr/share/man \
 		--sysconfdir=/etc \
 		--localstatedir=/var \
-		--with-piddir=/var/run \
+		--with-piddir=/var/run/samba \
 		--with-privatedir=/var/lib/samba/private \
+		--enable-fhs \
 		--disable-rpath \
 		--disable-rpath-install \
 		--nopyc \
 		--nopyo \
-		--bundled-libraries=!tdb,!tevent,!talloc,ALL \
+		$(use debug && echo "--enable-developer") \
+		$(use debug socket-wrapper) \
+		$(use debug && echo "--enable-nss-wrapper")\
 		$(use_enable gnutls) \
 		|| die "configure failed"
-}
-
-src_compile() {
-	$WAF build || die "build failed"
+		#--bundled-libraries=tdb,tevent,talloc,ldb \
 }
 
 src_install() {
-	DESTDIR="${D}" $WAF install || die "emake install failed"
+	emake DESTDIR="${D}" install || die "Install failed"
 	newinitd "${FILESDIR}/samba4.initd" samba || die "newinitd failed"
-	#remove conflicting file for tevent profided by sys-libs/tevent
-	find "${D}" -type f -name "_tevent.so" -delete
 
 	#create a symlink to ldb lib for linking other packages using ldb
 	dosym samba/libldb-samba4.so.0.9.22 usr/lib/libldb.so
